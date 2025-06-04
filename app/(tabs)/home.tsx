@@ -1,16 +1,13 @@
 import { MaterialIcons } from '@expo/vector-icons';
-import React from 'react'; // Removed useState as it's not used here directly
+import React from 'react';
 import {
   Dimensions,
   FlatList,
-  // SafeAreaView, // Removed
-  // StatusBar, // Removed
   StyleSheet,
   Text,
-  // TouchableOpacity, // Removed (HeaderIconButton is in shared layout)
   View,
 } from 'react-native';
-// import { useRouter, Href } from 'expo-router'; // Removed, header navigation handled by layout
+// Removed unused imports like useRouter, Href, SafeAreaView, StatusBar, TouchableOpacity
 
 const screenWidth = Dimensions.get('window').width;
 const numColumns = 3;
@@ -19,33 +16,19 @@ const postGap = 4;
 // Define your theme colors for consistency
 const stensylColors = {
   background: '#101a23',
-  // headerBackground: 'rgba(16, 26, 35, 0.8)', // Defined in shared layout
   cardBackground: '#1a2633',
   textWhite: '#ffffff',
   textMuted: '#90aecb',
   primaryBlue: '#0b80ee',
-  // iconWhite: '#ffffff', // Defined in shared layout
   avatarPlaceholderIcon: '#6b7280',
   divider: '#374151',
   postPlaceholder: '#ffffff', 
 };
 
-// HeaderIconButton is now part of app/(tabs)/_layout.tsx
-// interface HeaderIconButtonProps { /* ... */ }
-// const HeaderIconButton = ({ iconName, onPress }: HeaderIconButtonProps) => { /* ... */ };
-
 const showDebugStyles = false; 
 
 const StensylHomePage = () => {
-  // const router = useRouter(); // Header navigation is handled by (tabs)/_layout.tsx
   const postsData = Array.from({ length: 9 }).map((_, i) => ({ id: `post-${i}` }));
-
-  // Header navigation handlers are now in (tabs)/_layout.tsx
-  // const handleNotificationsPress = () => { /* ... */ };
-  // const handleSearchPress = () => { /* ... */ };
-  // const handleMessagesPress = () => { /* ... */ };
-  // const handleStudyLogPress = () => { /* ... */ };
-
 
   const renderPostItem = ({ item, index }: { item: { id: string }, index: number }) => {
     const isLastInRow = (index + 1) % numColumns === 0;
@@ -64,8 +47,6 @@ const StensylHomePage = () => {
   };
 
   return (
-    // No SafeAreaView or StatusBar here; provided by app/(tabs)/_layout.tsx
-    // No Header View here; provided by app/(tabs)/_layout.tsx
     <FlatList
       ListHeaderComponent={
         <>
@@ -109,11 +90,10 @@ const StensylHomePage = () => {
       renderItem={renderPostItem}
       keyExtractor={(item) => item.id}
       numColumns={numColumns}
-      style={styles.gridListStyle} // Ensures FlatList takes available space if needed
+      style={styles.gridListStyle} 
       contentContainerStyle={styles.gridListContentContainer}
       showsVerticalScrollIndicator={false}
     />
-    // No footerSpacer needed if padding is handled by layout or FlatList's contentContainerStyle
   );
 };
 
@@ -122,20 +102,13 @@ const availableWidthForGrid = screenWidth - (pageHorizontalPadding * 2);
 const postItemCalculatedWidth = (availableWidthForGrid - (postGap * (numColumns - 1))) / numColumns;
 
 const styles = StyleSheet.create({
-  // safeArea: { flex: 1, backgroundColor: stensylColors.background }, // Removed
-  // headerContainer: {}, // Removed
-  // headerInnerContainer: { /* ... */ }, // Removed
-  // headerActions: { /* ... */ }, // Removed
-  // headerIconTouchable: { /* ... */ }, // Removed
-  // headerTitle: { /* ... */ }, // Removed
-
   profileSection: { 
     flexDirection: 'row', 
     alignItems: 'center', 
     gap: 16, 
     marginBottom: 24, 
     paddingHorizontal: pageHorizontalPadding, 
-    marginTop: 16 // Add some top margin if this is the first content after header
+    marginTop: 16 
   },
   avatarContainer: {
     width: 96, height: 96, borderRadius: 48, backgroundColor: '#d1d5db', 
@@ -156,7 +129,8 @@ const styles = StyleSheet.create({
   statLabel: { color: stensylColors.textMuted, fontSize: 12 },
   bioText: { 
     color: stensylColors.textWhite, fontSize: 14, lineHeight: 14 * 1.625, 
-    marginBottom: 24, paddingHorizontal: pageHorizontalPadding + 4 
+    marginBottom: 24, 
+    paddingHorizontal: pageHorizontalPadding, // MODIFIED: Was pageHorizontalPadding + 4
   },
   divider: {
     borderTopWidth: 1,
@@ -164,16 +138,10 @@ const styles = StyleSheet.create({
     marginBottom: 16, 
     marginHorizontal: pageHorizontalPadding
   },
-
-  gridListStyle: {
-    // flex: 1, // This FlatList will be inside a View with flex:1 from the layout
-  },
+  gridListStyle: {},
   gridListContentContainer: {
     paddingHorizontal: pageHorizontalPadding,
-    paddingTop: 0, // If divider has marginBottom, this can be 0
-    // The paddingBottom for the bottom nav bar is handled by the structure in (tabs)/_layout.tsx
-    // The contentArea in (tabs)/_layout.tsx is flex: 1, and the bottomNavBar has a fixed height.
-    // Add some padding if the last item is too close to where the nav bar would be.
+    paddingTop: 0, 
     paddingBottom: 10, 
     ...(showDebugStyles ? { backgroundColor: 'rgba(255,0,0,0.2)'} : {}),
   },
@@ -190,8 +158,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     ...(showDebugStyles ? { borderWidth: 1, borderColor: 'blue' } : {}),
   },
-  // footerSpacer: { height: 20, backgroundColor: stensylColors.background }, // Removed
 });
 
 export default StensylHomePage;
-
