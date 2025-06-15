@@ -1,7 +1,7 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import React, { useState, useCallback, useMemo } from 'react';
 import {
-  FlatList,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -13,16 +13,12 @@ import {
 import { useFocusEffect, useRouter } from 'expo-router';
 import { stensylColors } from '@/constants/Colors';
 import DayBox from '@/components/DayBox';
-import PostItem from '@/components/PostItem';
-import type { PostItemProps } from '@/components/PostItem';
 import { supabase } from '@/lib/supabase';
-import { FeedEmptyState } from '@/components/EmptyState';
-import { FeedLoadingState } from '@/components/LoadingStates';
 import { GoalProgress } from '@/components/GoalProgress';
 import { GoalSettingModal } from '@/components/GoalSetting';
-import { RecentSessions } from '@/components/RecentSessions';
+
 import { StudyStatusBadge } from '@/components/StudyStatusBadge';
-import { StudyTemplates } from '@/components/StudyTemplates';
+
 import { StudyExport } from '@/components/StudyExport';
 import { SocialFeed } from '@/components/SocialFeed';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -41,17 +37,7 @@ interface SupabasePost {
   efficiency: number | null;
 }
 
-const transformSupabasePost = (post: SupabasePost): Omit<PostItemProps, 'onDelete'> => {
-  return {
-    id: post.id,
-    userName: post.user_name || 'Anonymous',
-    timestamp: new Date(post.created_at).toLocaleString(),
-    location: "Online",
-    timeStudied: post.duration,
-    description: `${post.topic}\nSubject: ${post.subject}${post.notes ? `\nNotes: ${post.notes}` : ''}`,
-    userId: post.user_id, // This was already here, which is good
-  };
-};
+
 
 const calculateStudyStreak = (posts: SupabasePost[]): number => {
     if (posts.length === 0) return 0;
@@ -145,12 +131,15 @@ export default function FeedScreen() {
   const [goalModalVisible, setGoalModalVisible] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
   const [exportModalVisible, setExportModalVisible] = useState(false);
+  const [socialFeedRefreshTrigger, setSocialFeedRefreshTrigger] = useState(0);
 
   useFocusEffect(
     useCallback(() => {
       let isActive = true;
+      console.log('🔍 HOME: Screen focused, starting data fetch...');
 
       const fetchPosts = async () => {
+        console.log('🔍 HOME: Fetching posts...', refreshing ? '(refresh)' : '(focus)');
         if (!refreshing) {
             setLoading(true);
         }
@@ -162,6 +151,8 @@ export default function FeedScreen() {
 
           if (isActive) {
             if (error) throw error;
+            console.log('🔍 HOME: Fetched posts count:', data?.length || 0);
+            console.log('🔍 HOME: Latest post topics:', data?.slice(0, 3).map(p => p.topic) || []);
             setPosts(data || []);
             
             // Check if this is a first-time user
@@ -171,9 +162,12 @@ export default function FeedScreen() {
                 setShowWelcome(true);
               }
             }
+
+            // Trigger social feed refresh when posts are updated
+            setSocialFeedRefreshTrigger(prev => prev + 1);
           }
         } catch (e: any) {
-          if (isActive) console.error("Failed to fetch posts from Supabase", e);
+          if (isActive) console.error("🔴 HOME: Failed to fetch posts from Supabase", e);
         } finally {
           if (isActive) {
             setLoading(false);
@@ -182,6 +176,7 @@ export default function FeedScreen() {
         }
       };
 
+      // Always fetch when screen comes into focus
       fetchPosts();
 
       return () => {
@@ -199,18 +194,7 @@ export default function FeedScreen() {
     setShowWelcome(false);
   };
 
-  // New handler for deleting a post from the state
-  const handleDeletePost = (deletedPostId: string) => {
-    console.log('🟦 handleDeletePost called with ID:', deletedPostId);
-    console.log('🟦 Current posts before filter:', posts.map(p => p.id));
-    
-    setPosts(currentPosts => {
-      console.log('🟦 Posts being filtered:', currentPosts.map(p => p.id));
-      const filtered = currentPosts.filter(post => post.id !== deletedPostId);
-      console.log('🟦 Posts after filter:', filtered.map(p => p.id));
-      return filtered;
-    });
-  };
+
 
   // Add today's stats calculation
   const todayStats = useMemo(() => calculateTodayStats(posts), [posts]);
@@ -241,24 +225,18 @@ export default function FeedScreen() {
     };
   }, [posts]);
 
-  // Pass userId and onDelete to the transformed data
-  const transformedPosts = posts.map(post => ({
-    ...transformSupabasePost(post),
-    onDelete: handleDeletePost,
-  }));
-
   if (loading && posts.length === 0) {
-    return <FeedLoadingState />;
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={stensylColors.primaryAccent} />
+      </View>
+    );
   }
 
   return (
     <>
-    <FlatList
+    <ScrollView 
       style={styles.screenBackground}
-      data={transformedPosts}
-      renderItem={({ item }) => <PostItem {...item} />}
-      keyExtractor={(item) => item.id}
-        ListEmptyComponent={!loading ? <FeedEmptyState /> : null}
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
@@ -266,86 +244,70 @@ export default function FeedScreen() {
           tintColor={stensylColors.textWhite}
         />
       }
-      ListHeaderComponent={
-        <View style={styles.feedHeaderContent}>
-            {/* Study Status Badge - shows when actively studying */}
-            <StudyStatusBadge isStudying={false} compact={true} />
+      contentContainerStyle={styles.scrollContentContainer}
+    >
+      <View style={styles.feedHeaderContent}>
+        {/* Study Status Badge - shows when actively studying */}
+        <StudyStatusBadge isStudying={false} compact={true} />
 
-          {/* Today's Focus Section */}
-          <View style={styles.todayFocusContainer}>
-            <Text style={styles.sectionTitle}>Today's Progress</Text>
-            <View style={styles.todayStatsGrid}>
-              <View style={styles.todayStatCard}>
-                <Text style={styles.todayStatValue}>{Math.floor(todayStats.totalMinutes / 60)}h {todayStats.totalMinutes % 60}m</Text>
-                <Text style={styles.todayStatLabel}>Studied</Text>
-              </View>
-              <View style={styles.todayStatCard}>
-                <Text style={styles.todayStatValue}>{todayStats.sessionCount}</Text>
-                <Text style={styles.todayStatLabel}>Sessions</Text>
-              </View>
-              <View style={styles.todayStatCard}>
-                <Text style={styles.todayStatValue}>{todayStats.topSubject || 'None'}</Text>
-                <Text style={styles.todayStatLabel}>Top Subject</Text>
-              </View>
-              <View style={styles.todayStatCard}>
-                <Text style={styles.todayStatValue}>{todayStats.efficiencyAvg || 'N/A'}</Text>
-                <Text style={styles.todayStatLabel}>Avg Efficiency</Text>
-              </View>
+        {/* Today's Focus Section */}
+        <View style={styles.todayFocusContainer}>
+          <Text style={styles.sectionTitle}>Today's Progress</Text>
+          <View style={styles.todayStatsGrid}>
+            <View style={styles.todayStatCard}>
+              <Text style={styles.todayStatValue}>{Math.floor(todayStats.totalMinutes / 60)}h {todayStats.totalMinutes % 60}m</Text>
+              <Text style={styles.todayStatLabel}>Studied</Text>
+            </View>
+            <View style={styles.todayStatCard}>
+              <Text style={styles.todayStatValue}>{todayStats.sessionCount}</Text>
+              <Text style={styles.todayStatLabel}>Sessions</Text>
+            </View>
+            <View style={styles.todayStatCard}>
+              <Text style={styles.todayStatValue}>{todayStats.topSubject || 'None'}</Text>
+              <Text style={styles.todayStatLabel}>Top Subject</Text>
+            </View>
+            <View style={styles.todayStatCard}>
+              <Text style={styles.todayStatValue}>{todayStats.efficiencyAvg || 'N/A'}</Text>
+              <Text style={styles.todayStatLabel}>Avg Efficiency</Text>
             </View>
           </View>
-
-          <View style={styles.weeklyProgressContainer}>
-            <View style={styles.dayBoxesContainer}>
-              {["S", "M", "T", "W", "T", "F", "S"].map((initial, index) => {
-                  // This shows activity for the last 7 calendar days
-                  return (
-                    <DayBox
-                      key={index}
-                      dayInitial={initial}
-                      studied={userStats.weeklyStudyDays[index]}
-                      isCurrentDay={index === userStats.currentDayIndex} // Highlight today
-                    />
-                  )
-              })}
-            </View>
-            <View style={styles.streakInfoContainer}>
-              <MaterialIcons name="local-fire-department" size={22} color={stensylColors.primaryAccent} style={styles.streakIcon} />
-              <Text style={styles.streakText}>{userStats.studyStreak}</Text>
-            </View>
-          </View>
-            
-            {/* Goals Section */}
-            <GoalProgress 
-              compact={true} 
-              onSetGoalPress={() => setGoalModalVisible(true)} 
-            />
-
-            {/* Study Templates */}
-            <StudyTemplates 
-              compact={true}
-              onTemplateSelect={(template) => {
-                // Navigate to study page with template pre-selected
-                console.log('Selected template:', template);
-                // For now, just navigate to the study tab
-                // TODO: In the future, we can pass parameters to pre-fill session data
-                router.push('/(tabs)/study');
-              }}
-            />
-
-            {/* Recent Activity Section */}
-            <View style={styles.socialSection}>
-              <Text style={styles.sectionTitle}>Recent Activity</Text>
-              <View style={styles.socialFeedContainer}>
-                <SocialFeed compact={true} maxItems={3} />
-              </View>
-            </View>
-
-            {/* Recent Sessions Summary */}
-            <RecentSessions posts={posts} compact={true} />
         </View>
-      }
-      contentContainerStyle={styles.feedListContainer}
-    />
+
+        <View style={styles.weeklyProgressContainer}>
+          <View style={styles.dayBoxesContainer}>
+            {["S", "M", "T", "W", "T", "F", "S"].map((initial, index) => {
+                // This shows activity for the last 7 calendar days
+                return (
+                  <DayBox
+                    key={index}
+                    dayInitial={initial}
+                    studied={userStats.weeklyStudyDays[index]}
+                    isCurrentDay={index === userStats.currentDayIndex} // Highlight today
+                  />
+                )
+            })}
+          </View>
+          <View style={styles.streakInfoContainer}>
+            <MaterialIcons name="local-fire-department" size={22} color={stensylColors.primaryAccent} style={styles.streakIcon} />
+            <Text style={styles.streakText}>{userStats.studyStreak}</Text>
+          </View>
+        </View>
+          
+        {/* Goals Section */}
+        <GoalProgress 
+          compact={true} 
+          onSetGoalPress={() => setGoalModalVisible(true)} 
+        />
+
+        {/* Recent Activity Section */}
+        <View style={styles.socialSection}>
+          <Text style={styles.sectionTitle}>Recent Activity</Text>
+          <View style={styles.socialFeedContainer}>
+            <SocialFeed compact={true} maxItems={3} refreshTrigger={socialFeedRefreshTrigger} />
+          </View>
+        </View>
+      </View>
+    </ScrollView>
       
       {/* Goal Setting Modal */}
       <GoalSettingModal
@@ -440,6 +402,10 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
     flexGrow: 1,
   },
+  scrollContentContainer: {
+    paddingBottom: 10,
+    flexGrow: 1,
+  },
   emptyFeedContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -475,14 +441,22 @@ const styles = StyleSheet.create({
   },
   todayStatCard: {
     backgroundColor: stensylColors.cardBackground,
-    borderRadius: 8,
-    padding: 12,
+    borderRadius: 12,
+    padding: 16,
     width: '48%',
-    marginBottom: 8,
+    marginBottom: 12,
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   todayStatValue: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
     color: stensylColors.textWhite,
     marginBottom: 4,
@@ -490,6 +464,7 @@ const styles = StyleSheet.create({
   todayStatLabel: {
     fontSize: 12,
     color: stensylColors.textMuted,
+    textAlign: 'center',
   },
 
   // Welcome modal styles

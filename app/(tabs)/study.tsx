@@ -20,7 +20,7 @@ import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs'; // Added 
 import { useAuth } from '@/context/AuthContext'; // Import useAuth
 import { supabase } from '@/lib/supabase'; // Import Supabase client
 import { GoalProgress } from '@/components/GoalProgress';
-import { PostEnhancement } from '@/components/PostEnhancement';
+
 
 // Helper function to format time (always HH:MM:SS if hours > 0 for stopwatch)
 const formatStopwatchTime = (totalSeconds: number): string => {
@@ -52,14 +52,8 @@ type PomodoroPhase = 'Study' | 'Break';
 const pomodoroDurationOptions = [15, 20, 25, 30, 35, 40, 45, 50, 55, 60];
 const pomodoroBreakOptions = [5, 10, 15, 20, 25, 30];
 
-// Add quick start preset options
-const quickStartOptions = [
-  { subject: 'Math', duration: 25, icon: 'calculate' },
-  { subject: 'Science', duration: 30, icon: 'science' },
-  { subject: 'English', duration: 20, icon: 'menu-book' },
-  { subject: 'History', duration: 25, icon: 'history-edu' },
-  { subject: 'Custom', duration: 25, icon: 'edit' },
-];
+// Replace quick start preset options with duration-only options
+const quickStartDurations = [15, 25, 45, 90]; // in minutes
 
 const StudyTrackerScreen = () => {
   const { user } = useAuth();
@@ -83,8 +77,12 @@ const StudyTrackerScreen = () => {
   const [sessionDescription, setSessionDescription] = useState('');
 
   const [loading, setLoading] = useState(false);
-  const [isPostEnhancementVisible, setIsPostEnhancementVisible] = useState(false);
-  const [pendingPostData, setPendingPostData] = useState<any>(null);
+
+  // Add social features state
+  const [postTitle, setPostTitle] = useState('');
+  const [isPublic, setIsPublic] = useState(false);
+  const [motivationLevel, setMotivationLevel] = useState(3);
+  const [showSocialOptions, setShowSocialOptions] = useState(false);
 
   const intervalRef = useRef<number | null>(null);
 
@@ -140,7 +138,7 @@ const StudyTrackerScreen = () => {
     setIsEndSessionModalVisible(true);
   };
 
-  const handleSaveSession = async () => {
+  const handleSaveSession = async (saveAsPublic = false) => {
     if (!sessionName.trim() || !subjectStudied.trim()) {
       Alert.alert("Missing Information", "Please enter both session name and subject.");
       return;
@@ -150,36 +148,69 @@ const StudyTrackerScreen = () => {
         Alert.alert("Invalid Score", "Efficiency score must be a number between 1 and 10.");
         return;
     }
-    if (!user) { // Check if user is available
+    if (!user) {
       Alert.alert("Error", "You must be logged in to save a session.");
       return;
     }
 
-    // Prepare data for PostEnhancement modal
-    const postData = {
-      topic: sessionName.trim(),
-      subject: subjectStudied.trim(),
-      duration: formatStopwatchTime(stopwatchSeconds),
-      notes: sessionDescription.trim() || null,
-      efficiency: efficiencyScore.trim() ? score : null,
-    };
+    setLoading(true);
+    try {
+      const { error } = await supabase
+        .from('posts')
+        .insert({
+          user_id: user.id,
+          user_name: user.user_metadata?.full_name || user.email,
+          title: postTitle.trim() || null,
+          topic: sessionName.trim(),
+          subject: subjectStudied.trim(),
+          duration: formatStopwatchTime(stopwatchSeconds),
+          notes: sessionDescription.trim() || null,
+          efficiency: efficiencyScore.trim() ? score : null,
+          motivation_level: saveAsPublic ? motivationLevel : null,
+          is_public: saveAsPublic,
+        });
 
-    setPendingPostData(postData);
-    setIsEndSessionModalVisible(false);
-    setIsPostEnhancementVisible(true);
+      if (error) throw error;
+
+      // Add small delay to ensure database transaction is committed
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Reset everything after successful post
+      setStopwatchSeconds(0);
+      resetPomodoro('Study');
+      resetForm();
+      setIsEndSessionModalVisible(false);
+      
+      console.log('🔍 STUDY: Session saved, navigating to home page...');
+      router.push('/(tabs)');
+    } catch (error: any) {
+      console.error('Error saving study session:', error);
+      Alert.alert('Error', 'Failed to save study session. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handlePostEnhancementComplete = () => {
-    // Reset everything after successful post
-    setStopwatchSeconds(0);
-    resetPomodoro('Study');
+  const resetForm = () => {
     setSessionName('');
     setSubjectStudied('');
     setEfficiencyScore('');
     setSessionDescription('');
-    setPendingPostData(null);
-    router.push('/(tabs)');
+    setPostTitle('');
+    setIsPublic(false);
+    setMotivationLevel(3);
+    setShowSocialOptions(false);
   };
+
+  const handleSavePrivate = () => handleSaveSession(false);
+  const handleSavePublic = () => handleSaveSession(true);
+
+  const getMotivationEmoji = (level: number): string => {
+    const emojis = ['😴', '😐', '🙂', '😊', '🔥'];
+    return emojis[level - 1] || '🙂';
+  };
+
+
 
   const handleCancelSave = () => setIsEndSessionModalVisible(false);
 
@@ -208,30 +239,16 @@ const StudyTrackerScreen = () => {
     setIsDurationPickerVisible(false);
   };
 
-  const handleQuickStart = (option: typeof quickStartOptions[0]) => {
-    if (option.subject === 'Custom') {
-      // Just set the timer duration and let user start normally
-      if (timerMode === 'Pomodoro') {
-        const newDurationSeconds = option.duration * 60;
-        setCustomStudyDuration(newDurationSeconds);
-        setPomodoroSecondsLeft(newDurationSeconds);
-      }
-      setIsTimerActive(false);
-    } else {
-      // Pre-fill session form and start timer immediately
-      setSessionName(`${option.subject} Study Session`);
-      setSubjectStudied(option.subject);
-      
-      if (timerMode === 'Pomodoro') {
-        const newDurationSeconds = option.duration * 60;
-        setCustomStudyDuration(newDurationSeconds);
-        setPomodoroSecondsLeft(newDurationSeconds);
-        resetPomodoro('Study');
-      }
-      
-      // Auto-start the timer
-      setIsTimerActive(true);
+  const handleQuickStart = (durationMinutes: number) => {
+    if (timerMode === 'Pomodoro') {
+      const newDurationSeconds = durationMinutes * 60;
+      setCustomStudyDuration(newDurationSeconds);
+      setPomodoroSecondsLeft(newDurationSeconds);
+      resetPomodoro('Study');
     }
+    
+    // Auto-start the timer
+    setIsTimerActive(true);
   };
 
   // const handleAdvancedStatsPress = () => {
@@ -311,21 +328,15 @@ const StudyTrackerScreen = () => {
           {/* Quick Start Buttons */}
           {!isTimerActive && stopwatchSeconds === 0 && (
             <View style={styles.quickStartContainer}>
-              <Text style={styles.quickStartTitle}>Quick Start</Text>
+              <Text style={styles.quickStartTitle}>Quick Timer</Text>
               <View style={styles.quickStartGrid}>
-                {quickStartOptions.map((option, index) => (
+                {quickStartDurations.map((durationMinutes, index) => (
                   <TouchableOpacity
                     key={index}
                     style={styles.quickStartButton}
-                    onPress={() => handleQuickStart(option)}
+                    onPress={() => handleQuickStart(durationMinutes)}
                   >
-                    <MaterialIcons 
-                      name={option.icon as any} 
-                      size={24} 
-                      color={stensylColors.primaryAccent} 
-                    />
-                    <Text style={styles.quickStartButtonText}>{option.subject}</Text>
-                    <Text style={styles.quickStartDurationText}>{option.duration}m</Text>
+                    <Text style={styles.quickStartButtonText}>{durationMinutes}m</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -422,6 +433,55 @@ const StudyTrackerScreen = () => {
                   multiline={true}
                   numberOfLines={3}
                 />
+
+                {/* Social Features Toggle */}
+                <TouchableOpacity 
+                  style={styles.socialToggleButton}
+                  onPress={() => setShowSocialOptions(!showSocialOptions)}
+                >
+                  <Text style={styles.socialToggleText}>
+                    {showSocialOptions ? 'Hide' : 'Show'} Sharing Options
+                  </Text>
+                  <MaterialIcons 
+                    name={showSocialOptions ? "expand-less" : "expand-more"} 
+                    size={20} 
+                    color={stensylColors.primaryAccent} 
+                  />
+                </TouchableOpacity>
+
+                {/* Collapsible Social Options */}
+                {showSocialOptions && (
+                  <View style={styles.socialOptionsContainer}>
+                    <TextInput
+                      style={styles.modalInput}
+                      placeholder="Optional: Add a title for sharing"
+                      placeholderTextColor={stensylColors.textMuted}
+                      value={postTitle}
+                      onChangeText={setPostTitle}
+                      maxLength={100}
+                    />
+
+                    <View style={styles.motivationSection}>
+                      <Text style={styles.motivationLabel}>How motivated do you feel?</Text>
+                      <View style={styles.motivationContainer}>
+                        {[1, 2, 3, 4, 5].map((level) => (
+                          <TouchableOpacity
+                            key={level}
+                            style={[
+                              styles.motivationButton,
+                              motivationLevel === level && styles.motivationButtonActive,
+                            ]}
+                            onPress={() => setMotivationLevel(level)}
+                          >
+                            <Text style={styles.motivationEmoji}>
+                              {getMotivationEmoji(level)}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </View>
+                  </View>
+                )}
               </ModalScrollView>
               <View style={styles.modalButtonRow}>
                 <TouchableOpacity style={[styles.modalButton, styles.cancelButton]} onPress={handleCancelSave}>
@@ -429,11 +489,20 @@ const StudyTrackerScreen = () => {
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.modalButton, styles.saveButton, loading && styles.disabledButtonState]}
-                  onPress={handleSaveSession}
+                  onPress={handleSavePrivate}
                   disabled={loading}
                 >
-                  <Text style={styles.modalButtonText}>{loading ? 'Saving...' : 'Save Session'}</Text>
+                  <Text style={styles.modalButtonText}>{loading ? 'Saving...' : 'Save Private'}</Text>
                 </TouchableOpacity>
+                {showSocialOptions && (
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.shareButton, loading && styles.disabledButtonState]}
+                    onPress={handleSavePublic}
+                    disabled={loading}
+                  >
+                    <Text style={styles.modalButtonText}>{loading ? 'Saving...' : 'Save & Share'}</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
           </View>
@@ -476,18 +545,7 @@ const StudyTrackerScreen = () => {
         </TouchableOpacity>
       </Modal>
 
-      {/* PostEnhancement Modal */}
-      {pendingPostData && (
-        <PostEnhancement
-          visible={isPostEnhancementVisible}
-          onClose={() => {
-            setIsPostEnhancementVisible(false);
-            setPendingPostData(null);
-          }}
-          postData={pendingPostData}
-          onComplete={handlePostEnhancementComplete}
-        />
-      )}
+
     </View>
   );
 };
@@ -551,42 +609,36 @@ const styles = StyleSheet.create({
 
   quickStartContainer: {
     width: '100%',
-    marginBottom: 30,
+    marginBottom: 20,
   },
   quickStartTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
     color: stensylColors.textWhite,
-    marginBottom: 16,
+    marginBottom: 12,
     textAlign: 'center',
   },
   quickStartGrid: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     justifyContent: 'space-between',
+    paddingHorizontal: 8,
   },
   quickStartButton: {
-    width: '30%',
-    aspectRatio: 1,
+    flex: 1,
+    height: 40,
     backgroundColor: stensylColors.cardBackground,
-    borderRadius: 12,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
+    marginHorizontal: 4,
     borderWidth: 1,
     borderColor: stensylColors.inputBackground,
   },
   quickStartButtonText: {
     color: stensylColors.textWhite,
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
-    marginTop: 6,
     textAlign: 'center',
-  },
-  quickStartDurationText: {
-    color: stensylColors.textMuted,
-    fontSize: 10,
-    marginTop: 2,
   },
 
   timerDisplayContainer: {
@@ -662,6 +714,7 @@ const styles = StyleSheet.create({
   },
   modalButton: { flex: 1, paddingVertical: 12, borderRadius: 8, alignItems: 'center', marginHorizontal: 5 },
   saveButton: { backgroundColor: stensylColors.successGreen },
+  shareButton: { backgroundColor: stensylColors.primaryAccent },
   cancelButton: { backgroundColor: stensylColors.disabledButton }, // This was stensylColors.disabledButton in example for consistency
   modalButtonText: { color: stensylColors.textWhite, fontSize: 16, fontWeight: '600' },
 
@@ -685,6 +738,60 @@ const styles = StyleSheet.create({
   durationOptionText: {
     color: stensylColors.textWhite,
     fontSize: 18,
+  },
+
+  // Social features styles
+  socialToggleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginTop: 8,
+    backgroundColor: stensylColors.inputBackground,
+    borderRadius: 8,
+  },
+  socialToggleText: {
+    color: stensylColors.primaryAccent,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  socialOptionsContainer: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: stensylColors.inputBackground,
+  },
+  motivationSection: {
+    marginTop: 12,
+  },
+  motivationLabel: {
+    color: stensylColors.textWhite,
+    fontSize: 14,
+    fontWeight: '500',
+    marginBottom: 8,
+  },
+  motivationContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingVertical: 8,
+  },
+  motivationButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: stensylColors.inputBackground,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  motivationButtonActive: {
+    borderColor: stensylColors.primaryAccent,
+    backgroundColor: stensylColors.primaryAccent + '20',
+  },
+  motivationEmoji: {
+    fontSize: 20,
   },
 });
 

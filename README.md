@@ -1,50 +1,170 @@
-# Welcome to your Expo app 👋
+# Stensyl - Study Tracking App 📚
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A React Native/Expo study tracking application with social features, goal setting, and performance analytics. Built with Supabase backend.
 
-## Get started
+## ✨ Features
 
-1. Install dependencies
+### 📊 Study Tracking
+- **Timer & Stopwatch** - Track study sessions with Pomodoro or stopwatch modes
+- **Session Logging** - Record subjects, efficiency ratings, and notes
+- **Quick Start** - Pre-configured study durations for fast session starts
 
+### 🎯 Goals & Progress
+- **Daily/Weekly Goals** - Set study time and session targets
+- **Progress Tracking** - Visual progress indicators and streak tracking
+- **Performance Index** - Comprehensive scoring based on consistency, volume, and focus
+
+### 🌟 Social Features
+- **Public Sharing** - Share study achievements with the community
+- **Reactions** - React to others' study sessions with 🔥 and 👏
+- **Motivation Tracking** - Track and share motivation levels
+- **Privacy Controls** - Choose to keep sessions private or share publicly
+
+### 📈 Analytics
+- **Study Streaks** - Track consecutive study days
+- **Personal Records** - Longest sessions, most productive days
+- **Subject Analytics** - See which subjects you study most
+- **Efficiency Insights** - Track focus quality over time
+
+## 🚀 Quick Start
+
+### Prerequisites
+- Node.js 18+
+- Expo CLI
+- Supabase account
+
+### Installation
+
+1. **Clone and install dependencies**
    ```bash
+   git clone <repository-url>
+   cd Stensyl
    npm install
    ```
 
-2. Start the app
+2. **Set up Supabase database**
+   ```bash
+   # Navigate to database directory
+   cd database
+   
+   # Run setup files in order (see database/README.md)
+   ```
 
+3. **Configure environment**
+   ```bash
+   # Create .env file with your Supabase credentials
+   cp .env.example .env
+   ```
+
+4. **Start the development server**
    ```bash
    npx expo start
    ```
 
-In the output, you'll find options to open the app in a
+## 📁 Project Structure
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```
+Stensyl/
+├── app/                    # Main app screens (file-based routing)
+│   ├── (tabs)/            # Tab navigation screens
+│   │   ├── index.tsx      # Home/Dashboard
+│   │   ├── study.tsx      # Study timer
+│   │   ├── social.tsx     # Social feed
+│   │   └── profile.tsx    # User profile
+│   └── auth/              # Authentication screens
+├── components/            # Reusable UI components
+├── context/              # React context providers
+├── database/             # Database setup and migration files
+│   ├── README.md         # Database documentation
+│   ├── supabase-setup.sql
+│   ├── enhance-posts-social-fixed.sql
+│   ├── add-goals-table.sql
+│   ├── add-stensyl-score.sql
+│   └── archive/          # Debugging files (31 files)
+├── lib/                  # Utilities and configurations
+└── constants/            # App constants and themes
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## 🗄️ Database Setup
 
-## Learn more
+See `database/README.md` for detailed database setup instructions. The database includes:
 
-To learn more about developing your project with Expo, look at the following resources:
+- **Study Sessions** - Core tracking functionality
+- **Social Features** - Public sharing and reactions
+- **Goals System** - Target setting and progress tracking
+- **Performance Scoring** - Advanced analytics
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+## 🎨 Key Components
 
-## Join the community
+### Study Timer (`app/(tabs)/study.tsx`)
+- Unified study session creation modal
+- Collapsible social sharing options
+- Direct database integration (no multiple modals)
 
-Join our community of developers creating universal apps.
+### Social Feed (`components/SocialFeed.tsx`)
+- Real-time study activity feed
+- Reaction system with 🔥 and 👏
+- User profile integration
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+### Delete Functionality
+- Custom confirmation modals matching Stensyl design
+- Proper RLS policies for secure deletion
+- Real-time UI updates
+
+## 🔧 Recent Improvements
+
+### ✅ Streamlined UX
+- **Single Modal** - Combined study session creation (was 2 separate modals)
+- **Optional Social** - Sharing features are now opt-in via collapsible section
+- **Quick Save** - "Save Private" and "Save & Share" options
+
+### ✅ Real-time Updates
+- **Immediate Visibility** - New study sessions appear instantly
+- **Coordinated Refresh** - Home page and social feed sync automatically
+- **Database Timing** - Proper commit delays for consistency
+
+### ✅ Clean Architecture
+- **Organized Database** - All SQL files moved to `database/` directory
+- **Archived Debugging** - 31 debugging files preserved in `archive/`
+- **Clear Documentation** - Comprehensive setup guides
+
+## 🛠️ Development
+
+### Available Scripts
+```bash
+npx expo start          # Start development server
+npx expo start --web    # Start web development
+npx expo build          # Build for production
+npm run lint           # Run ESLint
+npm test              # Run tests
+```
+
+### Tech Stack
+- **Frontend**: React Native, Expo, TypeScript
+- **Backend**: Supabase (PostgreSQL, Auth, RLS)
+- **Navigation**: Expo Router (file-based)
+- **Styling**: StyleSheet with custom theme system
+- **State**: React Context + useState/useEffect
+
+## 📱 Platform Support
+
+- ✅ **iOS** - Full native functionality
+- ✅ **Android** - Full native functionality  
+- ✅ **Web** - Complete web compatibility with platform-specific adaptations
+
+## 🔒 Security
+
+- Row Level Security (RLS) policies for data protection
+- User authentication via Supabase Auth
+- Secure delete operations with ownership verification
+- Privacy controls for study session sharing
+
+## 📄 License
+
+This project is licensed under the MIT License.
+
+---
+
+**Status**: ✅ Production Ready  
+**Last Updated**: June 2025  
+**Version**: 2.0.0 (Clean Architecture)

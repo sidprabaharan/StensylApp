@@ -33,11 +33,13 @@ interface SocialPost {
 interface SocialFeedProps {
   compact?: boolean;
   maxItems?: number;
+  refreshTrigger?: number;
 }
 
 export const SocialFeed: React.FC<SocialFeedProps> = ({ 
   compact = false, 
-  maxItems 
+  maxItems,
+  refreshTrigger
 }) => {
   const [posts, setPosts] = useState<SocialPost[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,14 +51,18 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({
   const fetchPosts = useCallback(async () => {
     try {
       setError(null);
+      console.log('🔍 SOCIAL FEED: Fetching posts...', maxItems ? `(limit: ${maxItems})` : '(no limit)');
+      
       const { data, error } = await supabase.rpc('get_social_feed', {
         limit_count: maxItems || 20
       });
 
       if (error) throw error;
+      console.log('🔍 SOCIAL FEED: Fetched posts count:', data?.length || 0);
+      console.log('🔍 SOCIAL FEED: Latest post topics:', data?.slice(0, 3).map(p => p.topic) || []);
       setPosts(data || []);
     } catch (err: any) {
-      console.error('Error fetching social feed:', err);
+      console.error('🔴 SOCIAL FEED: Error fetching social feed:', err);
       setError('Failed to load activity feed');
     } finally {
       setLoading(false);
@@ -68,6 +74,14 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({
     fetchPosts();
   }, [fetchPosts]);
 
+  // Add effect to watch for refresh trigger
+  useEffect(() => {
+    if (refreshTrigger && refreshTrigger > 0) {
+      console.log('🔍 SOCIAL FEED: Refresh triggered by parent');
+      fetchPosts();
+    }
+  }, [refreshTrigger, fetchPosts]);
+
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     fetchPosts();
@@ -76,6 +90,10 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({
   const handleProfilePress = useCallback((userId: string, userName: string) => {
     setSelectedProfile({ userId, userName });
     setProfileModalVisible(true);
+  }, []);
+
+  const handleDeletePost = useCallback((deletedPostId: string) => {
+    setPosts(prevPosts => prevPosts.filter(post => post.id !== deletedPostId));
   }, []);
 
   const renderPost = ({ item }: { item: SocialPost }) => (
@@ -94,6 +112,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({
       clapCount={item.clap_count}
       onReactionUpdate={fetchPosts}
       onProfilePress={handleProfilePress}
+      onDelete={handleDeletePost}
     />
   );
 

@@ -49,7 +49,7 @@ const supabaseOptions: SupabaseClientOptions<'public'> = {
     storage: storage,
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: false, // Crucial for React Native, set to false
+    detectSessionInUrl: Platform.OS === 'web', // Enable for web, disable for React Native
   },
 };
 

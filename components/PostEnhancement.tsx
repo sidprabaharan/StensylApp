@@ -61,6 +61,8 @@ export const PostEnhancement: React.FC<PostEnhancementProps> = ({
 
       if (error) throw error;
 
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       onComplete();
       onClose();
       resetForm();
@@ -91,6 +93,8 @@ export const PostEnhancement: React.FC<PostEnhancementProps> = ({
         });
 
       if (error) throw error;
+
+      await new Promise(resolve => setTimeout(resolve, 500));
 
       onComplete();
       onClose();
